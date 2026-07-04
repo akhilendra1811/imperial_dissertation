@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 Stream annual LOBSTER .7z archives through the project LOBSTER preprocessor.
+The compressed data files are saved on my one-drive and this will allow me to store
+alot of the files without take much space.
 
 This runner is intended for large annual LOBSTER downloads. It avoids extracting
 a full archive to disk before processing. Instead, archive members are streamed,
