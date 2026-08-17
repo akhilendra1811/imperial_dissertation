@@ -212,8 +212,7 @@ def formation_log_bidask_costs(
     bid_suffix: str = "_bid_close",
     ask_suffix: str = "_ask_close",
 ) -> dict[str, Any]:
-    """Summarise formation-window bid/ask log costs for one pair. cost-aware signal/threshold design"""
-    
+    """Summarise formation-window bid/ask log costs for one pair."""
 
     ticker_a = str(ticker_a).upper()
     ticker_b = str(ticker_b).upper()
@@ -227,14 +226,7 @@ def formation_log_bidask_costs(
     if missing:
         return {"valid_cost": False, "cost_reason": f"missing columns {missing}"}
 
-    date_mask = panel["trade_date"].astype(str).between(
-    str(formation_start),
-    str(formation_end),
-    )
-
-    formation_panel = panel.loc[date_mask]
-    frame = formation_panel[needed].copy()
-
+    frame = panel[panel["trade_date"].astype(str).between(str(formation_start), str(formation_end))][needed].copy()
     frame = frame.apply(pd.to_numeric, errors="coerce").dropna()
     frame = frame[(frame[needed] > 0).all(axis=1)]
     if frame.empty:

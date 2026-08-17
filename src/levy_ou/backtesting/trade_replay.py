@@ -1,5 +1,4 @@
-"""Generic threshold trade replay for OU pair-spread backtests. 
-If bid/ask data is missing, the code falls back to mid prices."""
+"""Generic threshold trade replay for OU pair-spread backtests."""
 
 from __future__ import annotations
 
@@ -35,7 +34,9 @@ def _mean_for_row(
         if mean_col is None:
             return float(mean)
         return float(_row_value(row, mean_col, mean))
-    raise ValueError("mean_mode must be 'constant' or 'moving'.")
+    if mean_mode == "frozen_entry":
+        return float(entry_mean if entry_mean is not None else mean)
+    raise ValueError("mean_mode must be 'constant', 'moving', or 'frozen_entry'.")
 
 
 def trade_band_window(
@@ -59,8 +60,8 @@ def trade_band_window(
 
     if exit_rule not in {"mean", "opposite_band"}:
         raise ValueError("exit_rule must be 'mean' or 'opposite_band'.")
-    if mean_mode not in {"constant", "moving"}:
-        raise ValueError("mean_mode must be 'constant' or 'moving'.")
+    if mean_mode not in {"constant", "moving", "frozen_entry"}:
+        raise ValueError("mean_mode must be 'constant', 'moving', or 'frozen_entry'.")
     if spread_col not in frame.columns:
         raise ValueError(f"frame is missing spread column {spread_col!r}.")
 
@@ -200,7 +201,7 @@ def trade_real_window(
     exit_rule: str = "mean",
     fixed_bps_half_turn_rate: float = ENDRES_HALF_TURN_RATE,
 ) -> list[dict[str, Any]]:
-    """ Wrapper for the NIG/CGMY simulated-threshold runners making it easy to call."""
+    """Compatibility wrapper for the NIG/CGMY simulated-threshold runners."""
 
     return trade_band_window(
         frame=trading,

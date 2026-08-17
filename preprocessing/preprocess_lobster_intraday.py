@@ -2,9 +2,11 @@
 """
 Preprocess LOBSTER message/orderbook files into minute-level data.
 
-Outputs one row per ticker-minute with top-of-book bid/ask quotes, midquote OHLC,
-execution volume/counts, and quality flags.
+The output will be: one row per ticker-minute
+with top-of-book bid/ask, midquote OHLC, execution volume/counts, and quality
+flags. 
 """
+
 from __future__ import annotations
 
 import argparse
@@ -168,7 +170,7 @@ def read_lobster_day(day: LobsterDay) -> pd.DataFrame:
 
 
 def ohlc_by_minute(frame: pd.DataFrame, value_col: str, prefix: str) -> pd.DataFrame:
-    """Compute open, high, low and close values by minute."""
+
     grouped = (
         frame.dropna(subset=[value_col])
         .groupby("minute_number")[value_col]
