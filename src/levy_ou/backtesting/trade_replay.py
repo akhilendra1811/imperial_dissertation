@@ -54,7 +54,7 @@ def trade_band_window(
 ) -> list[dict[str, Any]]:
     """Replay one pair-window using fixed upper/lower distances from the mean.
 
-    The function is deliberately model-agnostic. Gaussian, CP, NIG, and CGMY
+    The function is deliberately model-agnostic. Gaussian, NIG, CGMY, and symmetric BG
     runners should supply the fitted/formation mean and threshold distances.
     """
 

@@ -60,7 +60,7 @@ def threshold_arrays(
     """Precompute repeated-trade simulated profits for a threshold grid.
 
     This takes only simulated spread paths. It does not know whether the paths
-    came from NIG-OU, CGMY-OU, Gaussian OU, CP-OU, or another simulator.
+    came from NIG-OU, CGMY-OU, Gaussian OU, symmetric BG-OU, or another simulator.
     Each simulated path is replayed with the same entry/exit convention used by
     the real trading replay: after a position exits, the path can enter again.
     """

@@ -10,7 +10,6 @@ import pandas as pd
 
 from levy_ou.config import DT_MINUTE
 from levy_ou.estimators.cgmy_ou import estimate_cgmy_ou_fft_mle, stationary_cumulants_zero_mean
-from levy_ou.estimators.cp_ou import estimate_cp_ou_fixed_mean
 from levy_ou.estimators.gaussian_ou import fit_brownian_ou_from_spread
 from levy_ou.estimators.nig_ou import estimate_nig_ou_fixed_mean_fft_multistart
 from levy_ou.estimators.symmetric_bg_ou import estimate_symmetric_bg_ou_wu_innovation_moments
@@ -20,7 +19,7 @@ from levy_ou.simulation.nig_simulator import NIGOUFGMC, build_nig_ou_simulator_w
 from levy_ou.simulation.symmetric_bg_ou import SymmetricBGOU
 
 
-MODEL_CHOICES = ("gaussian", "cp", "nig", "cgmy", "symmetric_bg")
+MODEL_CHOICES = ("gaussian", "nig", "cgmy", "symmetric_bg")
 DEFAULT_SIM_FFT_GRID_SIZE = 2**15  # 32768: default NIG/CGMY simulation inversion grid.
 
 
@@ -57,49 +56,6 @@ def _simulate_gaussian_ou(
     return paths
 
 
-def _simulate_cp_ou(
-    theta: float,
-    mu: float,
-    sigma: float,
-    lambda_jump: float,
-    eta: float,
-    delta_jump: float,
-    x0: float,
-    n_paths: int,
-    n_steps: int,
-    dt: float,
-    seed: int,
-) -> np.ndarray:
-    """Euler CP-OU paths using the fitted double-exponential jump parameters."""
-
-    rng = np.random.default_rng(seed)
-    theta = float(theta)
-    mu = float(mu)
-    sigma = float(sigma)
-    lambda_jump = float(lambda_jump)
-    eta = float(eta)
-    delta_jump = float(delta_jump)
-    dt = float(dt)
-    paths = np.zeros((int(n_paths), int(n_steps)), dtype=float)
-    paths[:, 0] = float(x0)
-    use_jumps = bool(np.isfinite(lambda_jump) and lambda_jump > 0.0 and np.isfinite(eta) and eta > 0.0)
-    for step in range(1, int(n_steps)):
-        previous = paths[:, step - 1]
-        drift = theta * (mu - previous) * dt
-        diffusion = sigma * np.sqrt(dt) * rng.normal(size=int(n_paths))
-        jumps = np.zeros(int(n_paths), dtype=float)
-        if use_jumps:
-            counts = rng.poisson(lambda_jump * dt, size=int(n_paths))
-            for path_idx, count in enumerate(counts):
-                if count <= 0:
-                    continue
-                signs = rng.choice(np.array([-1.0, 1.0]), size=int(count))
-                excess = rng.exponential(scale=1.0 / eta, size=int(count))
-                jumps[path_idx] = float(np.sum(signs * (delta_jump + excess)))
-        paths[:, step] = previous + drift + diffusion + jumps
-    return paths
-
-
 def fit_model(
     model: str,
     spread: pd.Series | np.ndarray,
@@ -124,9 +80,7 @@ def fit_model(
         else:
             gfit = gaussian_fit if gaussian_fit is not None else fit_brownian_ou_from_spread(x)
             u_form = float(gfit.get("mu", np.mean(x)))
-            if model_key == "cp":
-                fit = estimate_cp_ou_fixed_mean(x, u_form=u_form, minutes_per_day=int(kwargs.get("minutes_per_day", 390)))
-            elif model_key == "nig":
+            if model_key == "nig":
                 fit = estimate_nig_ou_fixed_mean_fft_multistart(
                     x,
                     u_form=u_form,
@@ -248,20 +202,6 @@ def simulate_paths_from_fit(
             n_paths=n_paths,
             n_steps=n_observations,
             dt=1.0,
-            seed=seed,
-        )
-    if model == "cp":
-        return _simulate_cp_ou(
-            theta=float(fit.get("theta", fit.get("kappa", 1.0))),
-            mu=float(fit.get("u_form", fit.get("mu", 0.0))),
-            sigma=float(fit.get("sigma", model_scale(fit))),
-            lambda_jump=float(fit.get("lambda_jump", 0.0)),
-            eta=float(fit.get("eta", np.nan)),
-            delta_jump=float(fit.get("delta", 0.0)),
-            x0=float(x0),
-            n_paths=n_paths,
-            n_steps=n_observations,
-            dt=float(fit.get("dt", dt)),
             seed=seed,
         )
     if model == "nig":

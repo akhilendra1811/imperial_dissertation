@@ -3,7 +3,7 @@
 The backtest ``profits.csv`` files are pair-window summaries, not portfolio
 series.  This module rebuilds daily marked-to-market pair-slot returns from
 ``trades.csv`` and the original quote panel, then aggregates those returns into
-non-overlapping or overlapping rolling-window portfolios.
+overlapping rolling-window portfolios.
 """
 
 from __future__ import annotations
@@ -582,8 +582,6 @@ class SummaryConfig:
     trading_window_days: int
     annualisation_days: int
     hac_lags: int
-    window_start: int = 1
-    window_step: int = 10
     boundary_policy: str = "not_applicable"
     data_path: Path | None = None
     fama_french_factors_path: Path = DEFAULT_FAMA_FRENCH_DAILY_FACTORS_PATH
@@ -889,14 +887,6 @@ def model_filter(frame: pd.DataFrame, model: str) -> pd.DataFrame:
     return frame[canonical == model]
 
 
-def window_filter(frame: pd.DataFrame, mode: str, window_start: int, window_step: int) -> pd.DataFrame:
-    if mode != "non_overlapping":
-        return frame
-    windows = pd.to_numeric(frame["window_id"], errors="coerce")
-    keep = windows.notna() & (windows >= window_start) & (((windows - window_start) % window_step) == 0)
-    return frame[keep]
-
-
 def load_backtests(config: SummaryConfig, mode: str) -> tuple[pd.DataFrame, pd.DataFrame, list[Path]]:
     case = canonical_case(config.sector, config.year)
     case_dir = config.outputs_root / case
@@ -918,8 +908,6 @@ def load_backtests(config: SummaryConfig, mode: str) -> tuple[pd.DataFrame, pd.D
         trades = add_keys(trades, source, scope) if not trades.empty else trades
         profits = model_filter(profits, config.model)
         trades = model_filter(trades, config.model) if not trades.empty else trades
-        profits = window_filter(profits, mode, config.window_start, config.window_step)
-        trades = window_filter(trades, mode, config.window_start, config.window_step) if not trades.empty else trades
         if not profits.empty:
             profit_frames.append(profits)
             trade_frames.append(trades)
@@ -974,10 +962,6 @@ def load_zero_adf_windows(config: SummaryConfig, mode: str, case_dir: Path) -> t
     window_meta["window_id"] = pd.to_numeric(window_meta["window_id"], errors="coerce")
     window_meta = window_meta.dropna(subset=["window_id"]).copy()
     window_meta["window_id"] = window_meta["window_id"].astype(int)
-    if mode == "non_overlapping":
-        windows = window_meta["window_id"]
-        keep = (windows >= config.window_start) & (((windows - config.window_start) % config.window_step) == 0)
-        window_meta = window_meta[keep].copy()
     zero = window_meta[window_meta["adf_pass_count"].astype(int).eq(0)].copy()
     return zero[["window_id", "trading_start", "trading_end", "adf_pass_count"]], [
         f"ADF cash-vintage audit loaded from {path}; zero-selected windows={len(zero)}."
@@ -1016,7 +1000,6 @@ def load_threshold_rows(
         scope = selection_scope_from_path(directory, case_dir)
         frame = add_keys(frame, directory.name, scope)
         frame = model_filter(frame, config.model)
-        frame = window_filter(frame, mode, config.window_start, config.window_step)
         if frame.empty:
             continue
 
@@ -2488,7 +2471,7 @@ def write_outputs(
     run_summary: dict[str, Any],
 ) -> Path:
     case = canonical_case(config.sector, config.year)
-    base_out_dir = config.outputs_root / case / ("results_non_overlapping" if mode == "non_overlapping" else "results_overlapping")
+    base_out_dir = config.outputs_root / case / "results_overlapping"
     is_final_all_model_run = (
         config.selection_scope == "all"
         and config.model == "all"
@@ -2505,7 +2488,7 @@ def write_outputs(
         )
         out_dir = base_out_dir / "filtered_runs" / filtered_tag
     out_dir.mkdir(parents=True, exist_ok=True)
-    prefix = "non_overlapping" if mode == "non_overlapping" else "overlapping"
+    prefix = "overlapping"
     files = {
         f"{prefix}_summary_metrics.csv": summary,
         f"{prefix}_daily_returns.csv": daily,
@@ -2531,6 +2514,8 @@ def write_outputs(
 
 
 def run_summary(config: SummaryConfig, mode: str) -> Path:
+    if mode != "overlapping":
+        raise SystemExit("Only overlapping result summaries are supported.")
     case = canonical_case(config.sector, config.year)
     case_dir = config.outputs_root / case
     return_bases = requested_return_bases(config.return_basis)
@@ -2558,11 +2543,6 @@ def run_summary(config: SummaryConfig, mode: str) -> Path:
     diagnostics.extend(cash_reconciliation)
     daily_raw, boundary = aggregate_daily(vintage, config, mode)
     vintage.attrs.clear()
-    if mode == "non_overlapping" and not daily_raw.empty and int(daily_raw["num_live_vintages"].max()) > 1:
-        warnings.append(
-            "Non-overlapping selected windows include same-date handoff observations "
-            f"with up to {int(daily_raw['num_live_vintages'].max())} live vintages."
-        )
     daily = attach_wealth(daily_raw, rf_daily, config, mode)
     summary = performance_rows(daily, vintage, boundary, config, mode)
     windows = window_metrics(vintage, profits, trades, config, mode)
